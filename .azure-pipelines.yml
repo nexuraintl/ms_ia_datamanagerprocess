@@ -1,0 +1,60 @@
+# .azure-pipelines.yml
+# Sincroniza Azure DevOps (rama qa) -> GitHub (rama qa)
+
+trigger:
+  branches:
+    include:
+      - qa
+
+pool:
+  vmImage: ubuntu-latest
+
+variables:
+  GIT_USER: "santiago_valenzuela" #Nombre del usuario en Azure
+  GIT_EMAIL: "svalenzuela@nexura.com" #Correo del Azure
+  GITHUB_ORG: "nexuraintl" #Nombre del usuario dueño de la repo en GitHub
+  GITHUB_REPO: "mod_datamanager_process" #Nombre del Repo dueño de la repo en GitHub
+
+steps:
+  - checkout: self
+    clean: true
+    persistCredentials: true  # importante para no perder auth del repo Azure
+
+  # 1️⃣ Validar rama
+  - script: |
+      echo "Validando rama..."
+      echo "Build.SourceBranchName = '$(Build.SourceBranchName)'"
+      echo "Build.SourceBranch = '$(Build.SourceBranch)'"
+      if [ "$(Build.SourceBranch)" != "refs/heads/qa" ]; then
+        echo "❌ Solo la rama 'qa' puede sincronizarse con GitHub."
+        exit 1
+      fi
+    displayName: "Validar rama origen"
+
+  # 2️⃣ Configurar Git
+  - script: |
+      git config --global user.name "$(GIT_USER)"
+      git config --global user.email "$(GIT_EMAIL)"
+    displayName: "Configurar Git"
+
+  # 3️⃣ Sincronizar con GitHub
+  - script: |
+      echo "Deshabilitando shallow clone..."
+      git fetch --unshallow || true
+      git fetch --all
+
+      echo "Configurando remoto de GitHub..."
+      git remote add github https://$(GITHUB_TOKEN_NEXURAINTL)@github.com/$(GITHUB_ORG)/$(GITHUB_REPO).git || git remote set-url github https://$(GITHUB_TOKEN_NEXURAINTL)@github.com/$(GITHUB_ORG)/$(GITHUB_REPO).git
+
+      echo "Verificando HEAD..."
+      git log -1 --oneline
+
+      echo "Empujando historial completo hacia rama qa (GitHub)..."
+      git push github HEAD:qa --force -v
+
+      echo "Verificando ramas remotas..."
+      git ls-remote github
+    env:
+      GITHUB_TOKEN_NEXURAINTL: $(GITHUB_TOKEN_NEXURAINTL)
+    displayName: "Sincronizar con GitHub"
+    
