@@ -1,10 +1,10 @@
 # .azure-pipelines.yml
-# Sincroniza Azure DevOps (rama qa) -> GitHub (rama qa)
+# Sincroniza Azure DevOps (rama master) -> GitHub (rama master)
 
 trigger:
   branches:
     include:
-      - qa
+      - master
 
 pool:
   vmImage: ubuntu-latest
@@ -25,8 +25,8 @@ steps:
       echo "Validando rama..."
       echo "Build.SourceBranchName = '$(Build.SourceBranchName)'"
       echo "Build.SourceBranch = '$(Build.SourceBranch)'"
-      if [ "$(Build.SourceBranch)" != "refs/heads/qa" ]; then
-        echo "❌ Solo la rama 'qa' puede sincronizarse con GitHub."
+      if [ "$(Build.SourceBranch)" != "refs/heads/master" ]; then
+        echo "❌ Solo la rama 'master' puede sincronizarse con GitHub."
         exit 1
       fi
     displayName: "Validar rama origen"
@@ -49,8 +49,8 @@ steps:
       echo "Verificando HEAD..."
       git log -1 --oneline
 
-      echo "Empujando historial completo hacia rama qa (GitHub)..."
-      git push github HEAD:qa --force -v
+      echo "Empujando historial completo hacia rama master (GitHub)..."
+      git push github HEAD:master --force -v
 
       echo "Verificando ramas remotas..."
       git ls-remote github
