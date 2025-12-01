@@ -7,6 +7,8 @@ from openpyxl import load_workbook
 import base64
 from io import BytesIO
 
+OPERATIONS_CACHE = {}  # Guarda operaciones por id_item
+
 app = Flask(__name__)
 
 
@@ -19,7 +21,7 @@ class DataManagerPython:
         ext = os.path.splitext(filename)[1].lower()
 
         if ext in [".csv", ".txt"]:
-            for row in csv.reader(file_bytes.decode("utf-8", errors="ignore").splitlines(),delimiter=delimiter):
+            for row in csv.reader(file_bytes.decode("utf-8", errors="ignore").splitlines(), delimiter=delimiter):
                 yield row
 
         elif ext == ".xlsx":
@@ -100,10 +102,7 @@ class DataManagerPython:
                 operations.append({
                     "updateOne": [
                         filter_query,
-                        {
-                            "$set": document,
-                            "$setOnInsert": {"created_at": now}
-                        },
+                        {"$set": document,"$setOnInsert": {"created_at": now}},
                         {"upsert": True}
                     ]
                 })
@@ -137,7 +136,7 @@ class DataManagerPython:
         tiene_header = str(data.get("header", "")).upper() == "SI"
         delimiter = data.get("delimiter", ",")
 
-        batch_size = 500
+        batch_size = 5000
         batch = []
         array_error = []
         processed = 0
@@ -160,10 +159,7 @@ class DataManagerPython:
                     headers_row = [str(h).strip() for h in row]
                     break
             if not headers_row:
-                return {
-                    "status": "error",
-                    "message": "No se encontró la fila de cabecera indicada."
-                }
+                return { "status": "error", "message": "No se encontró la fila de cabecera indicada."}
             config_header = [c["key_ord"] for c in data_config["field"]]
             headers_lookup = {h.lower(): idx for idx, h in enumerate(headers_row)}
 
@@ -175,11 +171,7 @@ class DataManagerPython:
                 else:
                     info_headers[header] = headers_lookup[key]
             if missing:
-                return {
-                    "status": "error",
-                    "message": "Error en el formato del archivo. Faltan columnas obligatorias.",
-                    "missing_headers": missing
-                }
+                return { "status": "error", "message": "Error en el formato del archivo. Faltan columnas obligatorias.", "missing_headers": missing }
 
         else:
             info_headers = {c["key_ord"]: idx for idx, c in enumerate(data_config["field"])}
@@ -233,11 +225,15 @@ class DataManagerPython:
             if ops:
                 all_operations.append(ops)
 
+        OPERATIONS_CACHE[id_item] = all_operations
+
         return {
             "status": "ok" if not array_error else "errores",
-            "errors": array_error,
             "total_processed": processed,
-            "operations": all_operations
+            "errors": array_error,
+            "operations_available": True,
+            "total_chunks": len(all_operations),
+            "first_page": f"/operations/{id_item}/page/0"
         }
 
 
@@ -250,6 +246,22 @@ def procesar():
         return jsonify(result)
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 2
+
+# ===============================
+# 🔥 ENDPOINT PARA OBTENER CHUNKS
+# ===============================
+@app.get("/operations/<id_item>/page/<int:page>")
+def get_operations(id_item, page):
+    if id_item not in OPERATIONS_CACHE:
+        return jsonify({"status": "error", "message": "ID no encontrado"})
+    ops = OPERATIONS_CACHE[id_item]
+    if page < 0 or page >= len(ops):
+        return jsonify({"status": "error", "message": "Página fuera de rango"})
+    return jsonify({
+        "page": page,
+        "total_pages": len(ops),
+        "operations": ops[page]
+    })
 
 
 if __name__ == "__main__":
