@@ -7,7 +7,7 @@ from openpyxl import load_workbook
 import base64
 from io import BytesIO
 
-OPERATIONS_CACHE = {}  # Guarda operaciones por id_item
+OPERATIONS_CACHE = {}
 
 app = Flask(__name__)
 
@@ -78,7 +78,6 @@ class DataManagerPython:
 
             filter_query = {}
 
-            # Si trae CID
             cid = registro_data.get("cid")
             if cid:
                 try:
@@ -93,7 +92,6 @@ class DataManagerPython:
                 filter_query["id_item"] = id_item
                 filter_query["status"] = "lq"
 
-            # Extraer valores reales
             for val in data_config_fields:
                 campo = val["key_ord"]
                 document[campo] = self.get_trim(registro_data.get(campo, ""))
@@ -126,7 +124,6 @@ class DataManagerPython:
         config_recalc = req["configPrecalculada"]
         filename = req["filename"]
 
-        # Base64 → Bytes (sin duplicar memoria)
         file_bytes = base64.b64decode(req["file_base64"], validate=True)
 
         id_item = data["id"]
@@ -142,7 +139,6 @@ class DataManagerPython:
         processed = 0
         all_operations = []
 
-        # Filtros por campo
         campos_filtro = {}
         for c in data_config["field"]:
             filtros = c.get("filter_field", [])
@@ -185,7 +181,6 @@ class DataManagerPython:
             if not self.fila_tiene_datos(fila):
                 continue
 
-            # === Fix que evita "list index out of range"
             fila = list(fila)
             if len(fila) < len(campos):
                 fila.extend([""] * (len(campos) - len(fila)))
@@ -233,7 +228,6 @@ class DataManagerPython:
             "errors": array_error,
             "operations_available": True,
             "total_chunks": len(all_operations),
-            "first_page": f"/operations/{id_item}/page/0"
         }
 
 
@@ -247,9 +241,6 @@ def procesar():
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 2
 
-# ===============================
-# 🔥 ENDPOINT PARA OBTENER CHUNKS
-# ===============================
 @app.get("/operations/<id_item>/page/<int:page>")
 def get_operations(id_item, page):
     if id_item not in OPERATIONS_CACHE:
